@@ -4,10 +4,8 @@
 
 **A production-ready, auditable exemption engine for Azure Policy — built with Terraform + Azure Logic Apps**
 
-[![Terraform](https://img.shields.io/badge/Terraform-~>%201.6-7B42BC?logo=terraform)](https://terraform.io)
+[![Terraform](https://img.shields.io/badge/Terraform-~>%201.15-7B42BC?logo=terraform)](https://terraform.io)
 [![Azure](https://img.shields.io/badge/Azure-Policy%20Exemptions-0078D4?logo=microsoftazure)](https://learn.microsoft.com/en-us/azure/governance/policy/concepts/exemption-structure)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Validate](https://github.com/infantusgodfrey/azure-policy-exemption-workflow/actions/workflows/terraform-validate.yml/badge.svg)](https://github.com/infantusgodfrey/azure-policy-exemption-workflow/actions)
 
 <br/>
 
@@ -37,33 +35,33 @@ The naive responses — *"no exceptions ever"* (kills agility) or *"just disable
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                      Root Management Group                        │
+│                      Root Management Group                       │
 │            (Azure Policies assigned here — all subs)             │
 ├─────────────────────────┬────────────────────────────────────────┤
 │    Dev Subscription     │          Prod Subscription             │
-│  ┌──────────────────┐   │   ┌──────────────────────┐            │
-│  │  Storage Account │   │   │   Virtual Machine     │            │
-│  │  [DENIED ❌]     │   │   │   [DENIED ❌]         │            │
-│  └──────────────────┘   │   └──────────────────────┘            │
+│  ┌──────────────────┐   │   ┌──────────────────────┐             │
+│  │  Storage Account │   │   │   Virtual Machine    │             │
+│  │  [DENIED ❌]     │   │   │   [DENIED ❌]       │             │
+│  └──────────────────┘   │   └──────────────────────┘             │
 └─────────────────────────┴────────────────────────────────────────┘
          │  1. Submit request                  ▲ 4. Exemption created
          ▼                                     │    (scoped + time-bound)
 ┌──────────────────────────────────────────────────────────────────┐
-│                    Governance Subscription                        │
+│                    Governance Subscription                       │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │      Logic App  (la-policy-exemption-approval)             │  │
 │  │                                                            │  │
 │  │  [HTTP Trigger] → [Approval Email] → [Condition]           │  │
 │  │                        ↓                  ↓                │  │
-│  │                2. Governance     Approved → REST API call   │  │
-│  │                   Team Email     Rejected → Notify          │  │
+│  │                2. Governance     Approved → REST API call  │  │
+│  │                   Team Email     Rejected → Notify         │  │
 │  │                   [Approve/Reject]                         │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
-│  ┌──────────────────────┐   ┌────────────────────────────────┐  │
-│  │  Log Analytics (KQL)  │   │  Azure Monitor (Expiry Alerts)  │  │
-│  └──────────────────────┘   └────────────────────────────────┘  │
+│  ┌──────────────────────┐   ┌────────────────────────────────┐   │
+│  │  Log Analytics (KQL) │   │  Azure Monitor (Expiry Alerts) │   │
+│  └──────────────────────┘   └────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -239,7 +237,7 @@ PRs are welcome! Ideas for extension:
 
 ## Author
 
-**Godfrey Infant** · [GitHub @infantusgodfrey](https://github.com/infantusgodfrey)
+**Infantus Godfrey** · [GitHub @infantusgodfrey](https://github.com/infantusgodfrey)
 
 If you found this useful, ⭐ star the repo and share the article — it helps more engineers find it.
 
