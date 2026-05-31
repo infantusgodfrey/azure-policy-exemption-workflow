@@ -1,0 +1,227 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "logicAppName":             { "type": "string" },
+    "location":                 { "type": "string" },
+    "approverEmail":            { "type": "string" },
+    "office365ConnectionName":  { "type": "string" },
+    "subscriptionId":           { "type": "string" },
+    "resourceGroupName":        { "type": "string" }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[parameters('logicAppName')]",
+      "location": "[parameters('location')]",
+      "identity": { "type": "SystemAssigned" },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            }
+          },
+          "triggers": {
+            "Exemption_Request_Received": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "requester_email",
+                    "exemption_name",
+                    "resource_scope",
+                    "policy_assignment_id",
+                    "justification",
+                    "duration_days"
+                  ],
+                  "properties": {
+                    "requester_name":       { "type": "string" },
+                    "requester_email":      { "type": "string" },
+                    "team_name":            { "type": "string" },
+                    "exemption_name":       { "type": "string" },
+                    "resource_scope":       { "type": "string" },
+                    "policy_assignment_id": { "type": "string" },
+                    "policy_display_name":  { "type": "string" },
+                    "justification":        { "type": "string" },
+                    "duration_days":        { "type": "integer" },
+                    "ticket_reference":     { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "actions": {
+            "Initialize_ExpiryDate": {
+              "runAfter": {},
+              "type": "InitializeVariable",
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "expiryDate",
+                    "type": "string",
+                    "value": "@{addDays(utcNow(), triggerBody()?['duration_days'])}"
+                  }
+                ]
+              }
+            },
+            "Send_Approval_Email_To_Governance": {
+              "runAfter": { "Initialize_ExpiryDate": ["Succeeded"] },
+              "type": "ApiConnectionWebhook",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['office365']['connectionId']"
+                  }
+                },
+                "body": {
+                  "NotificationUrl": "@{listCallbackUrl()}",
+                  "Message": {
+                    "To": "[parameters('approverEmail')]",
+                    "Subject": "⚠️ [ACTION REQUIRED] Policy Exemption Request — @{triggerBody()?['exemption_name']}",
+                    "HideHTMLMessage": false,
+                    "Importance": "High",
+                    "Options": "Approve, Reject",
+                    "Body": "<h2 style='color:#0078d4'>Azure Policy Exemption Request</h2><p>A new exemption request requires your review and decision.</p><table border='1' cellpadding='10' cellspacing='0' style='border-collapse:collapse;font-family:Arial;font-size:14px'><tr style='background:#f3f3f3'><td><strong>Field</strong></td><td><strong>Value</strong></td></tr><tr><td>Requester</td><td>@{triggerBody()?['requester_name']} &lt;@{triggerBody()?['requester_email']}&gt;</td></tr><tr><td>Team</td><td>@{triggerBody()?['team_name']}</td></tr><tr><td>Exemption Name</td><td>@{triggerBody()?['exemption_name']}</td></tr><tr><td>Policy</td><td>@{triggerBody()?['policy_display_name']}</td></tr><tr><td>Resource Scope</td><td><code>@{triggerBody()?['resource_scope']}</code></td></tr><tr><td>Duration</td><td>@{triggerBody()?['duration_days']} days</td></tr><tr><td>Auto-Expiry Date</td><td><strong>@{variables('expiryDate')}</strong></td></tr><tr><td>Business Justification</td><td>@{triggerBody()?['justification']}</td></tr><tr><td>Ticket Reference</td><td>@{triggerBody()?['ticket_reference']}</td></tr></table><p style='margin-top:20px'><strong>Select Approve or Reject below.</strong> The exemption will be automatically provisioned or the requester notified accordingly.</p><p style='color:#666;font-size:12px'>This request was submitted via the Central Policy Exemption Workflow. All decisions are logged in Azure Activity Log.</p>"
+                  }
+                },
+                "path": "/approvalmail/$subscriptions"
+              }
+            },
+            "Check_Approval_Decision": {
+              "runAfter": { "Send_Approval_Email_To_Governance": ["Succeeded"] },
+              "type": "If",
+              "expression": {
+                "and": [
+                  {
+                    "equals": [
+                      "@body('Send_Approval_Email_To_Governance')?['SelectedOption']",
+                      "Approve"
+                    ]
+                  }
+                ]
+              },
+              "actions": {
+                "Create_Policy_Exemption_via_REST": {
+                  "runAfter": {},
+                  "type": "Http",
+                  "inputs": {
+                    "method": "PUT",
+                    "uri": "https://management.azure.com@{triggerBody()?['resource_scope']}/providers/Microsoft.Authorization/policyExemptions/@{triggerBody()?['exemption_name']}?api-version=2022-07-01-preview",
+                    "authentication": {
+                      "type": "ManagedServiceIdentity",
+                      "audience": "https://management.azure.com"
+                    },
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "body": {
+                      "properties": {
+                        "policyAssignmentId": "@{triggerBody()?['policy_assignment_id']}",
+                        "exemptionCategory": "Waiver",
+                        "displayName": "APPROVED: @{triggerBody()?['exemption_name']}",
+                        "description": "Justification: @{triggerBody()?['justification']} | Requester: @{triggerBody()?['requester_email']} | Ticket: @{triggerBody()?['ticket_reference']}",
+                        "expiresOn": "@{variables('expiryDate')}",
+                        "metadata": {
+                          "approvedBy": "[parameters('approverEmail')]",
+                          "approvalTimestamp": "@{utcNow()}",
+                          "requester": "@{triggerBody()?['requester_email']}",
+                          "team": "@{triggerBody()?['team_name']}",
+                          "ticketReference": "@{triggerBody()?['ticket_reference']}",
+                          "autoExpiry": "true",
+                          "workflowVersion": "1.0"
+                        }
+                      }
+                    }
+                  }
+                },
+                "Notify_Requester_Approved": {
+                  "runAfter": { "Create_Policy_Exemption_via_REST": ["Succeeded"] },
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['office365']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "path": "/v2/Mail",
+                    "body": {
+                      "To": "@{triggerBody()?['requester_email']}",
+                      "Subject": "✅ Policy Exemption Approved — @{triggerBody()?['exemption_name']}",
+                      "Importance": "Normal",
+                      "Body": "<h2 style='color:#107c10'>Your Policy Exemption Has Been Approved</h2><p>Good news! Your exemption request has been reviewed and approved by the Azure Governance Team.</p><table border='1' cellpadding='10' cellspacing='0' style='border-collapse:collapse;font-family:Arial'><tr><td><strong>Exemption Name</strong></td><td>@{triggerBody()?['exemption_name']}</td></tr><tr><td><strong>Policy Exempted</strong></td><td>@{triggerBody()?['policy_display_name']}</td></tr><tr><td><strong>Resource Scope</strong></td><td><code>@{triggerBody()?['resource_scope']}</code></td></tr><tr><td><strong>Valid Until</strong></td><td><strong style='color:#d83b01'>@{variables('expiryDate')}</strong></td></tr><tr><td><strong>Ticket</strong></td><td>@{triggerBody()?['ticket_reference']}</td></tr></table><p style='color:#d83b01'><strong>⏰ Important:</strong> This exemption will automatically expire on the date above. Plan your remediation or re-apply before expiry.</p><p>— Azure Governance Team</p>"
+                    }
+                  }
+                }
+              },
+              "else": {
+                "actions": {
+                  "Notify_Requester_Rejected": {
+                    "runAfter": {},
+                    "type": "ApiConnection",
+                    "inputs": {
+                      "host": {
+                        "connection": {
+                          "name": "@parameters('$connections')['office365']['connectionId']"
+                        }
+                      },
+                      "method": "post",
+                      "path": "/v2/Mail",
+                      "body": {
+                        "To": "@{triggerBody()?['requester_email']}",
+                        "Subject": "❌ Policy Exemption Not Approved — @{triggerBody()?['exemption_name']}",
+                        "Importance": "Normal",
+                        "Body": "<h2 style='color:#d83b01'>Your Policy Exemption Request Was Not Approved</h2><p>After review, the governance team was unable to approve your exemption request at this time.</p><table border='1' cellpadding='10' cellspacing='0' style='border-collapse:collapse;font-family:Arial'><tr><td><strong>Exemption Requested</strong></td><td>@{triggerBody()?['exemption_name']}</td></tr><tr><td><strong>Policy</strong></td><td>@{triggerBody()?['policy_display_name']}</td></tr><tr><td><strong>Ticket</strong></td><td>@{triggerBody()?['ticket_reference']}</td></tr></table><p><strong>Next steps:</strong></p><ul><li>Contact the governance team directly to understand the decision</li><li>Update your justification and resubmit if circumstances change</li><li>Consider alternative approaches that comply with the existing policy</li></ul><p>— Azure Governance Team</p>"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "Return_HTTP_Response": {
+              "runAfter": {
+                "Send_Approval_Email_To_Governance": [
+                  "Succeeded",
+                  "Failed",
+                  "TimedOut",
+                  "Skipped"
+                ]
+              },
+              "type": "Response",
+              "inputs": {
+                "statusCode": 202,
+                "headers": { "Content-Type": "application/json" },
+                "body": {
+                  "status": "submitted",
+                  "message": "Exemption request received. The governance team has been notified.",
+                  "exemption_name": "@{triggerBody()?['exemption_name']}",
+                  "proposed_expiry": "@{variables('expiryDate')}"
+                }
+              }
+            }
+          },
+          "outputs": {}
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "office365": {
+                "connectionId": "[concat('/subscriptions/', parameters('subscriptionId'), '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Web/connections/', parameters('office365ConnectionName'))]",
+                "connectionName": "[parameters('office365ConnectionName')]",
+                "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/office365')]"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
