@@ -15,19 +15,6 @@
 # Portal → API Connections → office365-connection → Edit → Authorize
 ###############################################################
 
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.85"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.5"
-    }
-  }
-}
-
 resource "random_string" "suffix" {
   length  = 6
   upper   = false

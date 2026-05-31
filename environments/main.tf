@@ -6,36 +6,9 @@
 #   2. governance-infrastructure → Logic App approval engine
 #   3. monitoring          → expiry alerts and audit
 #
+# Provider and Terraform version config: see providers.tf
 # GitHub: https://github.com/infantusgodfrey/azure-policy-exemption-workflow
 ###############################################################
-
-terraform {
-  required_version = ">= 1.6.0"
-
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.85"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.5"
-    }
-  }
-
-  # Recommended: uncomment and configure remote state
-  # backend "azurerm" {
-  #   resource_group_name  = "rg-terraform-state"
-  #   storage_account_name = "sttfstate<unique-suffix>"
-  #   container_name       = "tfstate"
-  #   key                  = "policy-exemption-workflow.tfstate"
-  # }
-}
-
-provider "azurerm" {
-  features {}
-  subscription_id = var.governance_subscription_id
-}
 
 ###############################################################
 # Local: resolve allowed VM SKU list
