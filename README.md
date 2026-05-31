@@ -4,10 +4,8 @@
 
 **A production-ready, auditable exemption engine for Azure Policy — built with Terraform + Azure Logic Apps**
 
-[![Terraform](https://img.shields.io/badge/Terraform-~>%201.6-7B42BC?logo=terraform)](https://terraform.io)
+[![Terraform](https://img.shields.io/badge/Terraform-~>%201.15-7B42BC?logo=terraform)](https://terraform.io)
 [![Azure](https://img.shields.io/badge/Azure-Policy%20Exemptions-0078D4?logo=microsoftazure)](https://learn.microsoft.com/en-us/azure/governance/policy/concepts/exemption-structure)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Validate](https://github.com/infantusgodfrey/azure-policy-exemption-workflow/actions/workflows/terraform-validate.yml/badge.svg)](https://github.com/infantusgodfrey/azure-policy-exemption-workflow/actions)
 
 <br/>
 
